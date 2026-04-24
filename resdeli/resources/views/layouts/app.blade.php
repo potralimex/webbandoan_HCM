@@ -587,7 +587,9 @@ if (globalSearch) {
 
         searchTimeout = setTimeout(async () => {
             try {
-                const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}`);
+                const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
                 const data = await res.json();
 
                 let html = '';

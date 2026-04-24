@@ -32,7 +32,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/update', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/password', [ProfileController::class, 'changePassword'])->name('profile.password');
 
-    // Orders (customer)
+    // Orders
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
     Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
@@ -41,14 +41,13 @@ Route::middleware('auth')->group(function () {
     // Reviews
     Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
 
-    // Favorites (AJAX)
+    // Favorites
     Route::post('/restaurants/{restaurant:slug}/favorite', [RestaurantController::class, 'toggleFavorite'])->name('restaurants.favorite');
 });
 
 // === ADMIN ROUTES ===
 Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
-    Route::get('/dashboard-data', [AdminController::class, 'dashboardData'])->name('dashboard.data');
 
     // Users
     Route::get('/users', [AdminController::class, 'users'])->name('users');
@@ -77,21 +76,15 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/menu-items/{menuItem}/edit', [MenuItemController::class, 'edit'])->name('menu-items.edit');
     Route::put('/menu-items/{menuItem}', [MenuItemController::class, 'update'])->name('menu-items.update');
     Route::delete('/menu-items/{menuItem}', [MenuItemController::class, 'destroy'])->name('menu-items.destroy');
-
-    // Orders
-    Route::get('/orders', [OrderController::class, 'adminIndex'])->name('orders.index');
-    Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
-
-    // Reviews
-    Route::get('/reviews', [ReviewController::class, 'adminIndex'])->name('reviews.index');
-    Route::post('/reviews/{review}/approve', [ReviewController::class, 'approve'])->name('reviews.approve');
-    Route::delete('/reviews/{review}', [ReviewController::class, 'destroy'])->name('reviews.destroy');
 });
 
-// === API ROUTES ===
-Route::prefix('api/v1')->name('api.')->group(function () {
-    Route::get('/restaurants', [MenuApiController::class, 'restaurants'])->name('restaurants');
-    Route::get('/restaurants/{restaurant:slug}/menu', [MenuApiController::class, 'restaurantMenu'])->name('restaurant.menu');
-    Route::get('/categories', [MenuApiController::class, 'categories'])->name('categories');
-    Route::get('/search', [MenuApiController::class, 'search'])->name('search');
+// ===== API CHUẨN =====
+Route::prefix('api/v1')->group(function () {
+
+    Route::get('/dashboard', [AdminController::class, 'dashboardApi']);
+
+    Route::get('/restaurants', [MenuApiController::class, 'restaurants']);
+    Route::get('/restaurants/{restaurant:slug}/menu', [MenuApiController::class, 'restaurantMenu']);
+    Route::get('/categories', [MenuApiController::class, 'categories']);
+    Route::get('/search', [MenuApiController::class, 'search']);
 });

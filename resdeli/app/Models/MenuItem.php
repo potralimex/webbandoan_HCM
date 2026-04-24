@@ -58,7 +58,11 @@ class MenuItem extends Model
     public function getImageUrlAttribute()
     {
         if ($this->image) {
-            return asset('storage/' . $this->image);
+            // If stored as absolute URL (seed/demo data), return as-is
+            if (preg_match('/^https?:\\/\\//i', $this->image)) {
+                return $this->image;
+            }
+            return asset('storage/' . ltrim($this->image, '/'));
         }
         return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop';
     }

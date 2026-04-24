@@ -145,7 +145,18 @@
                     </div>
                     <div>
                         @if($restaurant->is_open)
-                        <button class="btn btn-primary btn-sm add-to-cart-btn" data-id="{{ $item->id }}" data-name="{{ $item->name }}" data-price="{{ $item->effective_price }}" data-restaurant-id="{{ $restaurant->id }}" data-restaurant-name="{{ $restaurant->name }}" data-restaurant-fee="{{ $restaurant->delivery_fee }}" data-restaurant-min-order="{{ $restaurant->min_order }}" style="white-space:nowrap;">
+                        <button
+                            class="btn btn-primary btn-sm add-to-cart-btn"
+                            data-id="{{ $item->id }}"
+                            data-name="{{ $item->name }}"
+                            data-price="{{ $item->effective_price }}"
+                            data-restaurant-id="{{ $restaurant->id }}"
+                            data-restaurant-name="{{ $restaurant->name }}"
+                            data-restaurant-fee="{{ $restaurant->delivery_fee }}"
+                            data-restaurant-min-order="{{ $restaurant->min_order }}"
+                            onclick="event.preventDefault(); event.stopPropagation(); addToCart({{ (int) $item->id }}, {!! json_encode($item->name) !!}, {{ (float) $item->effective_price }}, {{ (int) $restaurant->id }}, {!! json_encode($restaurant->name) !!}, {{ (float) $restaurant->delivery_fee }}, {{ (float) $restaurant->min_order }}); return false;"
+                            style="white-space:nowrap;"
+                        >
                             <i class="fas fa-plus"></i> Thêm
                         </button>
                         @else
@@ -241,7 +252,7 @@
 
         <!-- CART SIDEBAR -->
         <div id="cart">
-            <div class="cart-sidebar">
+            <div class="cart-sidebar" id="cartSidebar">
                 <h3 style="font-size:1rem; font-weight:800; margin-bottom:1.25rem; padding-bottom:0.75rem; border-bottom:1px solid var(--border);">
                     <i class="fas fa-shopping-cart" style="color:var(--primary);"></i> Giỏ hàng của bạn
                 </h3>
@@ -348,22 +359,80 @@
 
 @section('scripts')
 <script>
-const STORAGE_KEY = 'resdeli_cart';
-const CURRENT_RESTAURANT = {
+// ES5-friendly cart script (avoids arrow functions / template literals)
+var STORAGE_KEY = 'resdeli_cart';
+var CURRENT_RESTAURANT = {
     id: {{ $restaurant->id }},
     name: {!! json_encode($restaurant->name) !!},
     deliveryFee: {{ $restaurant->delivery_fee }},
     minOrder: {{ $restaurant->min_order }}
 };
-let cart = {};
+var cart = {};
+
+// Polyfills for older browsers
+if (!Element.prototype.matches) {
+    Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
+}
+if (!Element.prototype.closest) {
+    Element.prototype.closest = function (s) {
+        var el = this;
+        while (el && el.nodeType === 1) {
+            if (el.matches(s)) return el;
+            el = el.parentElement || el.parentNode;
+        }
+        return null;
+    };
+}
+if (!Object.values) {
+    Object.values = function (obj) {
+        var keys = Object.keys(obj);
+        var out = [];
+        for (var i = 0; i < keys.length; i++) out.push(obj[keys[i]]);
+        return out;
+    };
+}
 
 function saveCart() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
 }
 
 function loadCart() {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    var stored = localStorage.getItem(STORAGE_KEY);
     cart = stored ? JSON.parse(stored) : {};
+
+    // Normalize legacy cart items (older versions might miss restaurant fields)
+    if (cart && typeof cart === 'object') {
+        var keys = Object.keys(cart);
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            var item = cart[key];
+            if (!item || typeof item !== 'object') return;
+
+            item.id = Number((item.id !== undefined && item.id !== null) ? item.id : key);
+            item.qty = Number((item.qty !== undefined && item.qty !== null) ? item.qty : 0);
+            item.price = Number((item.price !== undefined && item.price !== null) ? item.price : 0);
+
+            if (item.restaurant_id == null || Number.isNaN(Number(item.restaurant_id))) {
+                item.restaurant_id = CURRENT_RESTAURANT.id;
+            } else {
+                item.restaurant_id = Number(item.restaurant_id);
+            }
+
+            if (!item.restaurant_name) item.restaurant_name = CURRENT_RESTAURANT.name;
+
+            if (item.restaurant_delivery_fee == null || Number.isNaN(Number(item.restaurant_delivery_fee))) {
+                item.restaurant_delivery_fee = Number(CURRENT_RESTAURANT.deliveryFee);
+            } else {
+                item.restaurant_delivery_fee = Number(item.restaurant_delivery_fee);
+            }
+
+            if (item.restaurant_min_order == null || Number.isNaN(Number(item.restaurant_min_order))) {
+                item.restaurant_min_order = Number(CURRENT_RESTAURANT.minOrder);
+            } else {
+                item.restaurant_min_order = Number(item.restaurant_min_order);
+            }
+        }
+    }
 }
 
 function addToCart(id, name, price, restaurantId, restaurantName, restaurantFee, restaurantMinOrder) {
@@ -382,6 +451,16 @@ function addToCart(id, name, price, restaurantId, restaurantName, restaurantFee,
     cart[id].qty++;
     saveCart();
     renderCart();
+
+    // Visual feedback
+    var cartEl = document.getElementById('cartSidebar') || document.getElementById('cart');
+    if (cartEl) {
+        cartEl.style.transform = 'scale(1.02)';
+        cartEl.style.transition = 'transform 0.15s ease';
+        setTimeout(function () {
+            cartEl.style.transform = 'scale(1)';
+        }, 180);
+    }
 }
 
 function updateQty(id, delta) {
@@ -393,12 +472,12 @@ function updateQty(id, delta) {
 }
 
 function renderCart() {
-    const cartItemsEl = document.getElementById('cartItems');
-    const emptyCart = document.getElementById('emptyCart');
-    const cartSummary = document.getElementById('cartSummary');
-    const minOrderWarning = document.getElementById('minOrderWarning');
+    var cartItemsEl = document.getElementById('cartItems');
+    var emptyCart = document.getElementById('emptyCart');
+    var cartSummary = document.getElementById('cartSummary');
+    var minOrderWarning = document.getElementById('minOrderWarning');
 
-    const items = Object.values(cart);
+    var items = Object.values(cart);
 
     if (items.length === 0) {
         if (emptyCart) emptyCart.style.display = 'block';
@@ -413,24 +492,26 @@ function renderCart() {
     if (emptyCart) emptyCart.style.display = 'none';
     if (cartSummary) cartSummary.style.display = 'block';
 
-    let subtotal = 0;
-    let html = '';
-    const restaurantGroups = {};
+    var subtotal = 0;
+    var html = '';
+    var restaurantGroups = {};
 
-    items.forEach((item) => {
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
         subtotal += item.price * item.qty;
-        html += `<div class="cart-item">
-            <div style="flex:1; min-width:0;">
-                <div style="font-size:0.85rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.name}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted);">${item.restaurant_name}</div>
-                <div style="font-size:0.8rem; color:var(--primary);">${Number(item.price * item.qty).toLocaleString('vi-VN')}đ</div>
-            </div>
-            <div class="qty-control">
-                <button class="qty-btn" onclick="updateQty(${item.id}, -1)">−</button>
-                <span class="qty-input">${item.qty}</span>
-                <button class="qty-btn" onclick="updateQty(${item.id}, 1)">+</button>
-            </div>
-        </div>`;
+        html += ''
+            + '<div class="cart-item">'
+            + '  <div style="flex:1; min-width:0;">'
+            + '    <div style="font-size:0.85rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + item.name + '</div>'
+            + '    <div style="font-size:0.75rem; color:var(--text-muted);">' + item.restaurant_name + '</div>'
+            + '    <div style="font-size:0.8rem; color:var(--primary);">' + Number(item.price * item.qty).toLocaleString('vi-VN') + 'đ</div>'
+            + '  </div>'
+            + '  <div class="qty-control">'
+            + '    <button class="qty-btn" onclick="updateQty(' + item.id + ', -1)">−</button>'
+            + '    <span class="qty-input">' + item.qty + '</span>'
+            + '    <button class="qty-btn" onclick="updateQty(' + item.id + ', 1)">+</button>'
+            + '  </div>'
+            + '</div>';
 
         if (!restaurantGroups[item.restaurant_id]) {
             restaurantGroups[item.restaurant_id] = {
@@ -441,28 +522,36 @@ function renderCart() {
             };
         }
         restaurantGroups[item.restaurant_id].subtotal += item.price * item.qty;
-    });
+    }
 
-    const totalDeliveryFee = Object.values(restaurantGroups).reduce((sum, group) => sum + group.delivery_fee, 0);
-    const total = subtotal + totalDeliveryFee;
+    var groups = Object.values(restaurantGroups);
+    var totalDeliveryFee = 0;
+    for (var g = 0; g < groups.length; g++) totalDeliveryFee += Number(groups[g].delivery_fee || 0);
+    var total = subtotal + totalDeliveryFee;
 
     if (cartItemsEl) cartItemsEl.innerHTML = html;
 
-    const subtotalDisplay = document.getElementById('subtotalDisplay');
-    const totalDisplay = document.getElementById('totalDisplay');
-    const deliveryFeeDisplay = document.getElementById('subtotalDisplay')?.parentElement?.nextElementSibling?.querySelector('strong');
+    var subtotalDisplay = document.getElementById('subtotalDisplay');
+    var totalDisplay = document.getElementById('totalDisplay');
+    var deliveryFeeDisplay = null;
+    if (subtotalDisplay && subtotalDisplay.parentElement && subtotalDisplay.parentElement.nextElementSibling) {
+        deliveryFeeDisplay = subtotalDisplay.parentElement.nextElementSibling.querySelector('strong');
+    }
 
     if (subtotalDisplay) subtotalDisplay.textContent = Number(subtotal).toLocaleString('vi-VN') + 'đ';
     if (deliveryFeeDisplay) deliveryFeeDisplay.textContent = Number(totalDeliveryFee).toLocaleString('vi-VN') + 'đ';
     if (totalDisplay) totalDisplay.textContent = Number(total).toLocaleString('vi-VN') + 'đ';
 
     if (minOrderWarning) {
-        const warnings = Object.values(restaurantGroups)
-            .filter(group => group.subtotal < group.min_order)
-            .map(group => `${group.name} cần tối thiểu ${Number(group.min_order).toLocaleString('vi-VN')}đ`);
+        var warnings = [];
+        for (var w = 0; w < groups.length; w++) {
+            if (Number(groups[w].subtotal) < Number(groups[w].min_order)) {
+                warnings.push(groups[w].name + ' cần tối thiểu ' + Number(groups[w].min_order).toLocaleString('vi-VN') + 'đ');
+            }
+        }
 
         if (warnings.length > 0) {
-            minOrderWarning.textContent = `Cảnh báo: ${warnings.join('; ')}.`;
+            minOrderWarning.textContent = 'Cảnh báo: ' + warnings.join('; ') + '.';
             minOrderWarning.style.display = 'block';
         } else {
             minOrderWarning.style.display = 'none';
@@ -471,14 +560,15 @@ function renderCart() {
 }
 
 function showAddressModal() {
-    const items = Object.values(cart);
+    var items = Object.values(cart);
     if (items.length === 0) {
         alert('Vui lòng chọn ít nhất 1 món!');
         return;
     }
 
-    const restaurantGroups = {};
-    items.forEach((item) => {
+    var restaurantGroups = {};
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
         if (!restaurantGroups[item.restaurant_id]) {
             restaurantGroups[item.restaurant_id] = {
                 subtotal: 0,
@@ -488,88 +578,136 @@ function showAddressModal() {
             };
         }
         restaurantGroups[item.restaurant_id].subtotal += item.price * item.qty;
-    });
+    }
 
-    const warnings = Object.values(restaurantGroups)
-        .filter(group => group.subtotal < group.min_order)
-        .map(group => `${group.name} cần tối thiểu ${Number(group.min_order).toLocaleString('vi-VN')}đ`);
+    var groups = Object.values(restaurantGroups);
+    var warnings = [];
+    for (var w = 0; w < groups.length; w++) {
+        if (Number(groups[w].subtotal) < Number(groups[w].min_order)) {
+            warnings.push(groups[w].name + ' cần tối thiểu ' + Number(groups[w].min_order).toLocaleString('vi-VN') + 'đ');
+        }
+    }
 
     if (warnings.length > 0) {
         alert('Không thể đặt hàng: ' + warnings.join('; '));
         return;
     }
 
-    const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-    const totalDelivery = Object.values(restaurantGroups).reduce((sum, group) => sum + group.delivery_fee, 0);
-    const total = subtotal + totalDelivery;
+    var subtotal = 0;
+    for (var si = 0; si < items.length; si++) subtotal += Number(items[si].price) * Number(items[si].qty);
+    var totalDelivery = 0;
+    for (var gd = 0; gd < groups.length; gd++) totalDelivery += Number(groups[gd].delivery_fee || 0);
+    var total = subtotal + totalDelivery;
 
-    const cartFormItems = document.getElementById('cartFormItems');
+    var cartFormItems = document.getElementById('cartFormItems');
     if (cartFormItems) {
-        let formHtml = '';
-        items.forEach((item, idx) => {
-            formHtml += `<input type="hidden" name="items[${idx}][id]" value="${item.id}">
-                         <input type="hidden" name="items[${idx}][qty]" value="${item.qty}">
-                         <input type="hidden" name="items[${idx}][restaurant_id]" value="${item.restaurant_id}">`;
-        });
+        var formHtml = '';
+        for (var idx = 0; idx < items.length; idx++) {
+            var it = items[idx];
+            formHtml += ''
+                + '<input type="hidden" name="items[' + idx + '][id]" value="' + it.id + '">'
+                + '<input type="hidden" name="items[' + idx + '][qty]" value="' + it.qty + '">'
+                + '<input type="hidden" name="items[' + idx + '][restaurant_id]" value="' + it.restaurant_id + '">';
+        }
         cartFormItems.innerHTML = formHtml;
     }
 
-    const modalSubtotal = document.getElementById('modalSubtotal');
-    const modalDeliveryFee = document.getElementById('modalDeliveryFee');
-    const modalTotal = document.getElementById('modalTotal');
+    var modalSubtotal = document.getElementById('modalSubtotal');
+    var modalDeliveryFee = document.getElementById('modalDeliveryFee');
+    var modalTotal = document.getElementById('modalTotal');
     
     if (modalSubtotal) modalSubtotal.textContent = Number(subtotal).toLocaleString('vi-VN') + 'đ';
     if (modalDeliveryFee) modalDeliveryFee.textContent = Number(totalDelivery).toLocaleString('vi-VN') + 'đ';
     if (modalTotal) modalTotal.textContent = Number(total).toLocaleString('vi-VN') + 'đ';
 
     renderCart();
-    const modal = document.getElementById('addressModal');
+    var modal = document.getElementById('addressModal');
     if (modal) {
         modal.style.display = 'flex';
     }
     document.body.style.overflow = 'hidden';
 }
 
+// Alias for older UI code snippets
+function handleOrderClick() {
+    showAddressModal();
+}
+
 function closeAddressModal() {
-    const modal = document.getElementById('addressModal');
+    var modal = document.getElementById('addressModal');
     if (modal) {
         modal.style.display = 'none';
     }
     document.body.style.overflow = '';
 }
 
+// Optional explicit confirm hook (in case button is changed to onclick="confirmOrder()")
+function confirmOrder() {
+    var addressEl = document.getElementById('deliveryAddress');
+    var address = addressEl ? String(addressEl.value || '').trim() : '';
+
+    if (!address) {
+        alert('Vui lòng nhập địa chỉ giao hàng.');
+        return;
+    }
+
+    var form = document.getElementById('checkoutForm');
+    if (form) form.submit();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Add to cart event delegation
-    document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const id = parseInt(this.dataset.id);
-            const name = this.dataset.name;
-            const price = parseInt(this.dataset.price);
-            console.log('Add button clicked:', {id, name, price});
-            addToCart(id, name, price);
-        });
-    });
+    // Add to cart via click delegation (more reliable than per-button listeners)
+    document.addEventListener('click', function(e) {
+        var btn = e.target && e.target.closest ? e.target.closest('.add-to-cart-btn') : null;
+        if (!btn) return;
+
+        e.preventDefault();
+
+        try {
+            var id = parseInt(btn.getAttribute('data-id') || '', 10);
+            var name = btn.getAttribute('data-name') || '';
+            var price = parseFloat(btn.getAttribute('data-price') || '0');
+
+            var restaurantId = parseInt(btn.getAttribute('data-restaurant-id') || String(CURRENT_RESTAURANT.id), 10);
+            var restaurantName = btn.getAttribute('data-restaurant-name') || CURRENT_RESTAURANT.name;
+            var restaurantFee = parseFloat(btn.getAttribute('data-restaurant-fee') || String(CURRENT_RESTAURANT.deliveryFee));
+            var restaurantMinOrder = parseFloat(btn.getAttribute('data-restaurant-min-order') || String(CURRENT_RESTAURANT.minOrder));
+
+            if (!id || !name || isNaN(price)) {
+                alert('Không thể thêm món vào giỏ hàng. Vui lòng tải lại trang.');
+                return;
+            }
+
+            addToCart(id, name, price, restaurantId, restaurantName, restaurantFee, restaurantMinOrder);
+        } catch (err) {
+            console.error(err);
+            alert('Có lỗi khi thêm món vào giỏ hàng. Vui lòng tải lại trang.');
+        }
+    }, true);
 
     // Category filtering
-    document.querySelectorAll('.cat-btn[data-category]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const category = this.dataset.category;
+    var catBtns = document.querySelectorAll('.cat-btn[data-category]');
+    for (var i = 0; i < catBtns.length; i++) {
+        catBtns[i].addEventListener('click', function() {
+            var category = this.getAttribute('data-category');
             filterCategory(category);
-            
+
             // Update active button
-            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            var allBtns = document.querySelectorAll('.cat-btn');
+            for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove('active');
             this.classList.add('active');
         });
-    });
+    }
 
-    const form = document.getElementById('checkoutForm');
+    var form = document.getElementById('checkoutForm');
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const address = document.querySelector('input[name="delivery_address"]')?.value?.trim();
-            const phone = document.querySelector('input[name="phone"]')?.value?.trim();
+            var addressEl = document.querySelector('input[name="delivery_address"]');
+            var phoneEl = document.querySelector('input[name="phone"]');
+            var address = addressEl ? String(addressEl.value || '').trim() : '';
+            var phone = phoneEl ? String(phoneEl.value || '').trim() : '';
 
             if (!address) {
                 alert('Vui lòng nhập địa chỉ giao hàng.');
@@ -588,29 +726,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function filterCategory(category) {
-    const categories = document.querySelectorAll('.menu-category');
+    var categories = document.querySelectorAll('.menu-category');
     if (category === 'all') {
-        categories.forEach(cat => cat.style.display = 'block');
+        for (var i = 0; i < categories.length; i++) categories[i].style.display = 'block';
     } else if (category === 'do-uong') {
-        categories.forEach(cat => {
-            if (cat.id === 'cat-do-uong' || cat.id === 'cat-banh-ngot') {
-                cat.style.display = 'block';
-            } else {
-                cat.style.display = 'none';
-            }
-        });
+        for (var i = 0; i < categories.length; i++) {
+            var cat = categories[i];
+            if (cat.id === 'cat-do-uong' || cat.id === 'cat-banh-ngot') cat.style.display = 'block';
+            else cat.style.display = 'none';
+        }
     } else {
-        categories.forEach(cat => {
-            if (cat.id === 'cat-' + category) {
-                cat.style.display = 'block';
-            } else {
-                cat.style.display = 'none';
-            }
-        });
+        for (var i = 0; i < categories.length; i++) {
+            var cat = categories[i];
+            if (cat.id === 'cat-' + category) cat.style.display = 'block';
+            else cat.style.display = 'none';
+        }
     }
 }
 
-const addressModal = document.getElementById('addressModal');
+var addressModal = document.getElementById('addressModal');
 if (addressModal) {
     addressModal.addEventListener('click', function(e) {
         if (e.target === this) {
@@ -622,13 +756,13 @@ if (addressModal) {
 // Favorite toggle
 @auth
 function toggleFavorite() {
-    const btn = document.getElementById('favBtn');
+    var btn = document.getElementById('favBtn');
     fetch('{{ route("restaurants.favorite", $restaurant->slug) }}', {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.favorited) {
             btn.innerHTML = '<i class="fas fa-heart"></i> Đã thích';
             btn.className = 'btn btn-danger';
@@ -643,4 +777,5 @@ function toggleFavorite() {
 // Load cart on page load
 loadCart();
 renderCart();
+</script>
 @endsection

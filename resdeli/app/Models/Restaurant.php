@@ -67,7 +67,11 @@ class Restaurant extends Model
     public function getImageUrlAttribute()
     {
         if ($this->image) {
-            return asset('storage/' . $this->image);
+            // If stored as absolute URL (seed/demo data), return as-is
+            if (preg_match('/^https?:\\/\\//i', $this->image)) {
+                return $this->image;
+            }
+            return asset('storage/' . ltrim($this->image, '/'));
         }
         return 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&h=400&fit=crop';
     }
