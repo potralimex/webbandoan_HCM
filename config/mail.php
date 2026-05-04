@@ -17,6 +17,11 @@ return [
     'default' => env('MAIL_MAILER', 'log'),
 
     /*
+     | Admin email — nhận thông báo đơn hàng mới
+     */
+    'admin_email' => env('ADMIN_EMAIL', null),
+
+    /*
     |--------------------------------------------------------------------------
     | Mailer Configurations
     |--------------------------------------------------------------------------

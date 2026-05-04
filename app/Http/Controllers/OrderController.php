@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\MenuItem;
 use App\Models\Restaurant;
+use App\Mail\OrderCreatedMail;
 
 class OrderController extends Controller
 {
@@ -75,6 +77,16 @@ class OrderController extends Controller
 
         foreach ($orderItems as $item) {
             $order->items()->create($item);
+        }
+
+        // Gửi email thông báo đến admin
+        $adminEmail = config('mail.admin_email', env('ADMIN_EMAIL'));
+        if ($adminEmail) {
+            try {
+                Mail::to($adminEmail)->send(new OrderCreatedMail($order));
+            } catch (\Exception $e) {
+                \Log::error('OrderCreatedMail failed: ' . $e->getMessage());
+            }
         }
 
         return redirect()->route('orders.show', $order)->with('success', 'Đặt hàng thành công! Mã đơn: ' . $order->order_number);
