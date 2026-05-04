@@ -79,29 +79,78 @@
                     @endforeach
                     @error('payment_method')<div class="invalid-feedback" style="display:block;">{{ $message }}</div>@enderror
 
-                    {{-- VietQR Panel: hiện khi chọn bank_transfer --}}
-                    <div id="vietqrPanel" style="display:none; margin-top:1rem; padding:1.5rem; background:linear-gradient(135deg,#f0f7ff,#e8f4fd); border:2px solid #2d98da; border-radius:var(--radius); text-align:center;">
+                    {{-- VietQR Panel: bank_transfer --}}
+                    <div id="panel-bank_transfer" style="display:none; margin-top:1rem; padding:1.5rem; background:linear-gradient(135deg,#f0f7ff,#e8f4fd); border:2px solid #2d98da; border-radius:var(--radius); text-align:center;">
                         <div style="font-size:0.85rem; font-weight:700; color:#1a6b8a; margin-bottom:1rem;">
                             <i class="fas fa-qrcode"></i> Quét mã QR để chuyển khoản
                         </div>
-
-                        {{-- QR Image từ VietQR API --}}
-                        <img id="qrImage"
-                             src="https://img.vietqr.io/image/{{ config('payment.bank_id', 'MB') }}-{{ config('payment.account_number', '0123456789') }}-compact2.png?amount={{ $total }}&addInfo=ResDeli+{{ Auth::user()->name }}&accountName={{ urlencode(config('payment.account_name', 'RESDELI')) }}"
+                        <img src="https://img.vietqr.io/image/{{ config('payment.bank_id','MB') }}-{{ config('payment.account_number','0123456789') }}-compact2.png?amount={{ $total }}&addInfo=ResDeli+{{ urlencode(Auth::user()->name) }}&accountName={{ urlencode(config('payment.account_name','RESDELI')) }}"
                              alt="VietQR"
                              style="width:220px; height:220px; border-radius:var(--radius-sm); border:4px solid #fff; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-
-                        <div style="margin-top:1rem; font-size:0.85rem; color:#333; line-height:1.8;">
-                            <div><strong>Ngân hàng:</strong> {{ config('payment.bank_name', 'MB Bank') }}</div>
-                            <div><strong>Số TK:</strong> <span style="font-family:monospace; font-size:1rem; color:#2d98da; font-weight:700;">{{ config('payment.account_number', '0123456789') }}</span></div>
-                            <div><strong>Chủ TK:</strong> {{ config('payment.account_name', 'RESDELI') }}</div>
+                        <div style="margin-top:1rem; font-size:0.85rem; color:#333; line-height:2;">
+                            <div><strong>Ngân hàng:</strong> {{ config('payment.bank_name','MB Bank') }}</div>
+                            <div><strong>Số TK:</strong> <span style="font-family:monospace; font-size:1rem; color:#2d98da; font-weight:700;">{{ config('payment.account_number','0123456789') }}</span></div>
+                            <div><strong>Chủ TK:</strong> {{ config('payment.account_name','RESDELI') }}</div>
                             <div><strong>Số tiền:</strong> <span style="color:var(--primary); font-weight:700; font-size:1rem;">{{ number_format($total) }}đ</span></div>
-                            <div><strong>Nội dung:</strong> <span style="font-family:monospace; background:#fff; padding:2px 8px; border-radius:4px; color:#333;">ResDeli {{ Auth::user()->name }}</span></div>
+                            <div><strong>Nội dung:</strong> <span style="font-family:monospace; background:#fff; padding:2px 8px; border-radius:4px;">ResDeli {{ Auth::user()->name }}</span></div>
                         </div>
-
                         <div style="margin-top:1rem; padding:0.75rem; background:#fff3cd; border-radius:var(--radius-sm); font-size:0.78rem; color:#856404;">
-                            <i class="fas fa-info-circle"></i>
-                            Chuyển khoản xong nhấn <strong>"Xác nhận đặt hàng"</strong>. Đơn sẽ được xác nhận sau khi admin kiểm tra.
+                            <i class="fas fa-info-circle"></i> Chuyển khoản xong nhấn <strong>"Xác nhận đặt hàng"</strong>.
+                        </div>
+                    </div>
+
+                    {{-- MoMo Panel --}}
+                    <div id="panel-momo" style="display:none; margin-top:1rem; padding:1.5rem; background:linear-gradient(135deg,#fdf0f8,#fce4f5); border:2px solid #ae2070; border-radius:var(--radius); text-align:center;">
+                        <div style="font-size:0.85rem; font-weight:700; color:#ae2070; margin-bottom:1rem;">
+                            <i class="fas fa-qrcode"></i> Quét mã QR thanh toán MoMo
+                        </div>
+                        {{-- QR encode deeplink MoMo --}}
+                        @php
+                            $momoPhone  = config('payment.momo_phone', '0123456789');
+                            $momoName   = config('payment.momo_name', 'RESDELI');
+                            $momoLink   = "momo://app?action=payWithApp&isScanQR=true&phone={$momoPhone}&amount={$total}&note=ResDeli+" . urlencode(Auth::user()->name) . "&username={$momoPhone}";
+                            $momoQR     = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" . urlencode($momoLink);
+                        @endphp
+                        <img src="{{ $momoQR }}" alt="MoMo QR"
+                             style="width:220px; height:220px; border-radius:var(--radius-sm); border:4px solid #fff; box-shadow:0 4px 15px rgba(174,32,112,0.2);">
+                        <div style="margin-top:1rem; font-size:0.85rem; color:#333; line-height:2;">
+                            <div style="display:inline-flex; align-items:center; gap:0.5rem; background:#ae2070; color:#fff; padding:0.4rem 1rem; border-radius:50px; font-weight:700; font-size:0.9rem;">
+                                <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" style="width:20px; height:20px; border-radius:50%;"> MoMo
+                            </div>
+                            <div style="margin-top:0.75rem;"><strong>Số điện thoại:</strong> <span style="font-family:monospace; font-size:1rem; color:#ae2070; font-weight:700;">{{ $momoPhone }}</span></div>
+                            <div><strong>Tên:</strong> {{ $momoName }}</div>
+                            <div><strong>Số tiền:</strong> <span style="color:var(--primary); font-weight:700; font-size:1rem;">{{ number_format($total) }}đ</span></div>
+                            <div><strong>Nội dung:</strong> <span style="font-family:monospace; background:#fff; padding:2px 8px; border-radius:4px;">ResDeli {{ Auth::user()->name }}</span></div>
+                        </div>
+                        <div style="margin-top:1rem; padding:0.75rem; background:#fff3cd; border-radius:var(--radius-sm); font-size:0.78rem; color:#856404;">
+                            <i class="fas fa-info-circle"></i> Mở app MoMo → Quét mã → Chuyển tiền → Nhấn <strong>"Xác nhận đặt hàng"</strong>.
+                        </div>
+                    </div>
+
+                    {{-- ZaloPay Panel --}}
+                    <div id="panel-zalopay" style="display:none; margin-top:1rem; padding:1.5rem; background:linear-gradient(135deg,#f0f8ff,#dbeeff); border:2px solid #0068ff; border-radius:var(--radius); text-align:center;">
+                        <div style="font-size:0.85rem; font-weight:700; color:#0068ff; margin-bottom:1rem;">
+                            <i class="fas fa-qrcode"></i> Quét mã QR thanh toán ZaloPay
+                        </div>
+                        @php
+                            $zaloPhone = config('payment.zalopay_phone', '0123456789');
+                            $zaloName  = config('payment.zalopay_name', 'RESDELI');
+                            $zaloLink  = "zalopay://transfer?phone={$zaloPhone}&amount={$total}&description=ResDeli+" . urlencode(Auth::user()->name);
+                            $zaloQR    = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" . urlencode($zaloLink);
+                        @endphp
+                        <img src="{{ $zaloQR }}" alt="ZaloPay QR"
+                             style="width:220px; height:220px; border-radius:var(--radius-sm); border:4px solid #fff; box-shadow:0 4px 15px rgba(0,104,255,0.2);">
+                        <div style="margin-top:1rem; font-size:0.85rem; color:#333; line-height:2;">
+                            <div style="display:inline-flex; align-items:center; gap:0.5rem; background:#0068ff; color:#fff; padding:0.4rem 1rem; border-radius:50px; font-weight:700; font-size:0.9rem;">
+                                💙 ZaloPay
+                            </div>
+                            <div style="margin-top:0.75rem;"><strong>Số điện thoại:</strong> <span style="font-family:monospace; font-size:1rem; color:#0068ff; font-weight:700;">{{ $zaloPhone }}</span></div>
+                            <div><strong>Tên:</strong> {{ $zaloName }}</div>
+                            <div><strong>Số tiền:</strong> <span style="color:var(--primary); font-weight:700; font-size:1rem;">{{ number_format($total) }}đ</span></div>
+                            <div><strong>Nội dung:</strong> <span style="font-family:monospace; background:#fff; padding:2px 8px; border-radius:4px;">ResDeli {{ Auth::user()->name }}</span></div>
+                        </div>
+                        <div style="margin-top:1rem; padding:0.75rem; background:#fff3cd; border-radius:var(--radius-sm); font-size:0.78rem; color:#856404;">
+                            <i class="fas fa-info-circle"></i> Mở app ZaloPay → Quét mã → Chuyển tiền → Nhấn <strong>"Xác nhận đặt hàng"</strong>.
                         </div>
                     </div>
                 </div>
@@ -170,27 +219,33 @@
 
 @section('scripts')
 <script>
-const TOTAL = {{ $total }};
-const USER_NAME = @json(Auth::user()->name);
+const ALL_PANELS = ['bank_transfer', 'momo', 'zalopay'];
 
 function selectPayment(method) {
+    // Reset tất cả option
     document.querySelectorAll('.payment-option').forEach(l => {
         l.style.borderColor = 'var(--border)';
         l.style.background = '';
     });
+
+    // Highlight option được chọn
     const selected = document.querySelector(`.payment-option[data-method="${method}"]`);
     if (selected) {
         selected.style.borderColor = 'var(--primary)';
         selected.style.background = 'var(--primary-light)';
     }
 
-    // Hiện/ẩn QR panel
-    const qrPanel = document.getElementById('vietqrPanel');
-    if (method === 'bank_transfer') {
-        qrPanel.style.display = 'block';
-        qrPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } else {
-        qrPanel.style.display = 'none';
+    // Ẩn tất cả panel QR
+    ALL_PANELS.forEach(m => {
+        const p = document.getElementById('panel-' + m);
+        if (p) p.style.display = 'none';
+    });
+
+    // Hiện panel của method được chọn (nếu có)
+    const panel = document.getElementById('panel-' + method);
+    if (panel) {
+        panel.style.display = 'block';
+        setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
     }
 }
 
@@ -204,8 +259,6 @@ document.querySelectorAll('.payment-option').forEach(label => {
 
 // Init on load
 const checkedInput = document.querySelector('.payment-option input:checked');
-if (checkedInput) {
-    selectPayment(checkedInput.value);
-}
+if (checkedInput) selectPayment(checkedInput.value);
 </script>
 @endsection
