@@ -60,14 +60,14 @@
                     @php
                     $methods = [
                         'cod'           => ['icon' => '💵', 'label' => 'Tiền mặt khi nhận hàng (COD)', 'desc' => 'Thanh toán khi nhận được hàng'],
-                        'bank_transfer' => ['icon' => '🏦', 'label' => 'Chuyển khoản ngân hàng',       'desc' => 'Chuyển khoản trước khi giao hàng'],
+                        'bank_transfer' => ['icon' => '🏦', 'label' => 'Chuyển khoản ngân hàng (VietQR)', 'desc' => 'Quét mã QR để chuyển khoản ngay'],
                         'momo'          => ['icon' => '📱', 'label' => 'Ví MoMo',                       'desc' => 'Thanh toán qua ví điện tử MoMo (mock)'],
                         'zalopay'       => ['icon' => '💙', 'label' => 'ZaloPay',                       'desc' => 'Thanh toán qua ZaloPay (mock)'],
                     ];
                     @endphp
 
                     @foreach($methods as $value => $method)
-                    <label style="display:flex; align-items:center; gap:1rem; padding:1rem; border:2px solid var(--border); border-radius:var(--radius-sm); margin-bottom:0.75rem; cursor:pointer; transition:all 0.2s;" class="payment-option">
+                    <label style="display:flex; align-items:center; gap:1rem; padding:1rem; border:2px solid var(--border); border-radius:var(--radius-sm); margin-bottom:0.75rem; cursor:pointer; transition:all 0.2s;" class="payment-option" data-method="{{ $value }}">
                         <input type="radio" name="payment_method" value="{{ $value }}" {{ old('payment_method', 'cod') === $value ? 'checked' : '' }}
                                style="accent-color:var(--primary); width:18px; height:18px; flex-shrink:0;">
                         <span style="font-size:1.5rem;">{{ $method['icon'] }}</span>
@@ -78,6 +78,32 @@
                     </label>
                     @endforeach
                     @error('payment_method')<div class="invalid-feedback" style="display:block;">{{ $message }}</div>@enderror
+
+                    {{-- VietQR Panel: hiện khi chọn bank_transfer --}}
+                    <div id="vietqrPanel" style="display:none; margin-top:1rem; padding:1.5rem; background:linear-gradient(135deg,#f0f7ff,#e8f4fd); border:2px solid #2d98da; border-radius:var(--radius); text-align:center;">
+                        <div style="font-size:0.85rem; font-weight:700; color:#1a6b8a; margin-bottom:1rem;">
+                            <i class="fas fa-qrcode"></i> Quét mã QR để chuyển khoản
+                        </div>
+
+                        {{-- QR Image từ VietQR API --}}
+                        <img id="qrImage"
+                             src="https://img.vietqr.io/image/{{ config('payment.bank_id', 'MB') }}-{{ config('payment.account_number', '0123456789') }}-compact2.png?amount={{ $total }}&addInfo=ResDeli+{{ Auth::user()->name }}&accountName={{ urlencode(config('payment.account_name', 'RESDELI')) }}"
+                             alt="VietQR"
+                             style="width:220px; height:220px; border-radius:var(--radius-sm); border:4px solid #fff; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+                        <div style="margin-top:1rem; font-size:0.85rem; color:#333; line-height:1.8;">
+                            <div><strong>Ngân hàng:</strong> {{ config('payment.bank_name', 'MB Bank') }}</div>
+                            <div><strong>Số TK:</strong> <span style="font-family:monospace; font-size:1rem; color:#2d98da; font-weight:700;">{{ config('payment.account_number', '0123456789') }}</span></div>
+                            <div><strong>Chủ TK:</strong> {{ config('payment.account_name', 'RESDELI') }}</div>
+                            <div><strong>Số tiền:</strong> <span style="color:var(--primary); font-weight:700; font-size:1rem;">{{ number_format($total) }}đ</span></div>
+                            <div><strong>Nội dung:</strong> <span style="font-family:monospace; background:#fff; padding:2px 8px; border-radius:4px; color:#333;">ResDeli {{ Auth::user()->name }}</span></div>
+                        </div>
+
+                        <div style="margin-top:1rem; padding:0.75rem; background:#fff3cd; border-radius:var(--radius-sm); font-size:0.78rem; color:#856404;">
+                            <i class="fas fa-info-circle"></i>
+                            Chuyển khoản xong nhấn <strong>"Xác nhận đặt hàng"</strong>. Đơn sẽ được xác nhận sau khi admin kiểm tra.
+                        </div>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block" style="padding:1rem; font-size:1rem;">
@@ -144,20 +170,42 @@
 
 @section('scripts')
 <script>
+const TOTAL = {{ $total }};
+const USER_NAME = @json(Auth::user()->name);
+
+function selectPayment(method) {
+    document.querySelectorAll('.payment-option').forEach(l => {
+        l.style.borderColor = 'var(--border)';
+        l.style.background = '';
+    });
+    const selected = document.querySelector(`.payment-option[data-method="${method}"]`);
+    if (selected) {
+        selected.style.borderColor = 'var(--primary)';
+        selected.style.background = 'var(--primary-light)';
+    }
+
+    // Hiện/ẩn QR panel
+    const qrPanel = document.getElementById('vietqrPanel');
+    if (method === 'bank_transfer') {
+        qrPanel.style.display = 'block';
+        qrPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        qrPanel.style.display = 'none';
+    }
+}
+
 document.querySelectorAll('.payment-option').forEach(label => {
     label.addEventListener('click', () => {
-        document.querySelectorAll('.payment-option').forEach(l => {
-            l.style.borderColor = 'var(--border)';
-            l.style.background = '';
-        });
-        label.style.borderColor = 'var(--primary)';
-        label.style.background = 'var(--primary-light)';
+        const method = label.dataset.method;
+        label.querySelector('input').checked = true;
+        selectPayment(method);
     });
 });
-// Init selected
-document.querySelectorAll('.payment-option input:checked').forEach(input => {
-    input.closest('.payment-option').style.borderColor = 'var(--primary)';
-    input.closest('.payment-option').style.background = 'var(--primary-light)';
-});
+
+// Init on load
+const checkedInput = document.querySelector('.payment-option input:checked');
+if (checkedInput) {
+    selectPayment(checkedInput.value);
+}
 </script>
 @endsection

@@ -297,7 +297,27 @@
 <script>
 const DELIVERY_FEE = {{ $restaurant->delivery_fee }};
 const MIN_ORDER = {{ $restaurant->min_order }};
+
+// Seed từ session — giữ cart khi reload trang
 let cart = {};
+@auth
+@php
+    $sessionCart = collect(session('cart', []))
+        ->filter(fn($item) => \App\Models\MenuItem::find($item['id'])?->restaurant_id == $restaurant->id)
+        ->values();
+@endphp
+@foreach($sessionCart as $item)
+cart[{{ $item['id'] }}] = {
+    id: {{ $item['id'] }},
+    name: @json($item['name']),
+    price: {{ $item['price'] }},
+    qty: {{ $item['quantity'] }}
+};
+@endforeach
+@endauth
+
+// Render ngay khi load
+renderCart();
 
 function addToCart(id, name, price) {
     @auth
@@ -310,8 +330,7 @@ function addToCart(id, name, price) {
     .then(data => {
         if (data.success) {
             // Update navbar badge
-            const badge = document.getElementById('cartBadge');
-            if (badge) { badge.textContent = data.count; badge.style.display = 'flex'; }
+            updateBadge(data.count);
             // Also update local cart for sidebar
             if (!cart[id]) cart[id] = { id, name, price, qty: 0 };
             cart[id].qty++;
@@ -327,8 +346,26 @@ function addToCart(id, name, price) {
 function updateQty(id, delta) {
     if (!cart[id]) return;
     cart[id].qty += delta;
-    if (cart[id].qty <= 0) delete cart[id];
+    if (cart[id].qty <= 0) {
+        delete cart[id];
+        fetch('{{ route("cart.remove") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ menu_item_id: id })
+        }).then(r => r.json()).then(data => updateBadge(data.count));
+    } else {
+        fetch('{{ route("cart.update") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ menu_item_id: id, quantity: cart[id].qty })
+        }).then(r => r.json()).then(data => updateBadge(data.count));
+    }
     renderCart();
+}
+
+function updateBadge(count) {
+    const badge = document.getElementById('cartBadge');
+    if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'flex' : 'none'; }
 }
 
 function renderCart() {
