@@ -92,6 +92,7 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     // Orders
     Route::get('/orders', [OrderController::class, 'adminIndex'])->name('orders.index');
     Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
+    Route::get('/orders/export', [AdminController::class, 'exportOrders'])->name('orders.export');
 
     // Reviews
     Route::get('/reviews', [ReviewController::class, 'adminIndex'])->name('reviews.index');

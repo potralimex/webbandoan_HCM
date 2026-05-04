@@ -9,6 +9,8 @@ use App\Models\Restaurant;
 use App\Models\MenuItem;
 use App\Models\Review;
 use App\Models\Category;
+use App\Exports\OrdersExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AdminController extends Controller
 {
@@ -184,5 +186,29 @@ class AdminController extends Controller
         $this->ensureAdmin();
         $category->delete();
         return back()->with('success', 'Đã xóa danh mục!');
+    }
+
+    // Export orders to Excel
+    public function exportOrders(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $request->validate([
+            'from_date' => 'nullable|date',
+            'to_date'   => 'nullable|date|after_or_equal:from_date',
+        ]);
+
+        $fromDate = $request->get('from_date');
+        $toDate   = $request->get('to_date');
+
+        $filename = 'don-hang-resdeli';
+        if ($fromDate) $filename .= '-tu-' . $fromDate;
+        if ($toDate)   $filename .= '-den-' . $toDate;
+        $filename .= '-' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(
+            new OrdersExport($fromDate, $toDate),
+            $filename
+        );
     }
 }
